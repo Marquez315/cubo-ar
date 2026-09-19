@@ -239,6 +239,7 @@
 
   <div id="filaBotones">
     <button id="instalarBtn" style="display:none;">📲 Instalar app</button>
+    <button id="descargarBtn">⬇️ Descargar app</button>
     <button id="ajusteBtn">🎛 Tamaño / Giro</button>
     <button id="plantillaBtn">🖨️ Plantilla del cubo</button>
     <button id="compartirBtn" class="destacado">📸 Compartir</button>
@@ -442,6 +443,13 @@
       <li>En Android, Chrome o Edge (celular o escritorio): tocá <b>📲 Instalar app</b>. Se abre un cartel del navegador para confirmar; una vez instalada, aparece como un ícono propio y se abre a pantalla completa, sin la barra del navegador.</li>
       <li>En iPhone/iPad (Safari): tocá <b>📲 Instalar app</b> y seguí el paso manual que te muestra (Compartir → "Agregar a inicio"), porque Safari no permite instalarla con un solo toque.</li>
       <li>La instalación es opcional: la app funciona igual de bien abierta directo desde el navegador.</li>
+    </ol>
+
+    <h3>9. Descargar la app para guardarla o moverla a otra compu</h3>
+    <ol>
+      <li>Tocá <b>⬇️ Descargar app</b>: se guarda un <code>cubo-ar-app.zip</code> con todos los archivos de la app.</li>
+      <li>Sirve para tener una copia propia, moverla a otra compu o subirla a otro hosting con HTTPS.</li>
+      <li><b>Importante:</b> abrir el <code>index.html</code> del .zip con doble clic <u>no habilita la cámara</u> (los navegadores la bloquean fuera de HTTPS o "localhost"). Para usarla realmente sin internet, lo mejor es instalarla una vez con conexión (paso 8) y después abrirla como app instalada. El .zip trae un <code>LEEME.txt</code> con los detalles.</li>
     </ol>
 
     <h3>Si algo falla</h3>
@@ -1878,6 +1886,119 @@ if ('serviceWorker' in navigator) {
     });
   }
 })();
+
+/* ===========================================================
+   9. Descargar la app entera (.zip) para guardarla, moverla a
+      otra compu o subirla a otro hosting.
+   =========================================================== */
+document.getElementById('descargarBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('descargarBtn');
+  if (typeof JSZip === 'undefined') {
+    alert('No se pudo preparar la descarga (falta JSZip). Revisá tu conexión a internet e intentá de nuevo.');
+    return;
+  }
+
+  const textoOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Empaquetando…';
+
+  try {
+    const zip = new JSZip();
+    const base = new URL('.', location.href); // carpeta actual, sirva donde sirva
+    const archivos = [
+      'index.html',
+      'manifest.webmanifest',
+      'sw.js',
+      'icon-192.png',
+      'icon-512.png',
+      'icon-512-maskable.png',
+      'apple-touch-icon.png'
+    ];
+
+    let algunoFalló = false;
+    for (const nombre of archivos) {
+      try {
+        const res = await fetch(new URL(nombre, base).href, { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        zip.file(nombre, await res.blob());
+      } catch (err) {
+        console.warn('No se pudo incluir', nombre, err);
+        algunoFalló = true;
+      }
+    }
+
+    zip.file('LEEME.txt',
+`CUBO AR EDUCATIVO — paquete descargado
+=======================================
+
+Qué es esto
+-----------
+Una copia completa de la app: el HTML, el ícono, el manifest y el
+service worker que la hacen instalable y usable sin conexión.
+
+MUY IMPORTANTE sobre la cámara y el modo offline
+--------------------------------------------------
+Los navegadores sólo dejan usar la cámara si la página se abre por HTTPS
+o desde "localhost". Abrir el "index.html" con doble clic (como archivo
+local) NO habilita la cámara — es una regla de seguridad del navegador,
+no algo de esta app.
+
+Opción recomendada (offline real, con cámara):
+  1. Subí esta carpeta a un hosting con HTTPS (GitHub Pages, Netlify
+     Drop, Vercel, etc.) — es gratis y tarda un par de minutos.
+  2. Abrí esa dirección una vez, con internet, y tocá "📲 Instalar app".
+  3. De ahí en más, la app abre sin conexión, con cámara y todo, como
+     cualquier app instalada en el celular o la compu.
+
+Opción alternativa (servidor local, sin subir nada a internet):
+  1. Instalá Python (la mayoría de las compus ya lo tiene).
+  2. Abrí una terminal en esta carpeta y ejecutá:
+       python3 -m http.server 8000
+  3. Abrí en el navegador: http://localhost:8000
+     ("localhost" cuenta como conexión segura aunque no haya internet
+     real, así que la cámara funciona igual.)
+
+Qué SÍ funciona sin internet (después de instalada una vez)
+--------------------------------------------------------------
+- Los temas de ejemplo (sistema solar, célula, etc.), fotos, videos y
+  modelos 3D que ya hayas cargado a cada cara del cubo.
+
+Qué necesita internet SIEMPRE
+--------------------------------
+- Un video de YouTube pegado con un link (YouTube no es local).
+- La primerísima vez que se abre la app en un dispositivo nuevo, para
+  bajar las librerías (A-Frame, AR.js) y quedar instalada.
+
+Archivos incluidos
+-------------------
+index.html                                 — la app
+manifest.webmanifest                       — datos para "instalarla"
+sw.js                                      — la hace funcionar sin conexión
+icon-192.png / icon-512.png /
+icon-512-maskable.png / apple-touch-icon.png — íconos
+`);
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cubo-ar-app.zip';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+
+    if (algunoFalló) {
+      alert('Se descargó el .zip, pero faltó incluir algún archivo (revisá que index.html, manifest.webmanifest, sw.js y los íconos estén todos subidos junto a esta página). Fijate el LEEME.txt adentro para más detalles.');
+    }
+  } catch (err) {
+    console.error('Error armando el .zip de descarga:', err);
+    alert('No se pudo armar la descarga. Revisá tu conexión e intentá de nuevo.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+  }
+});
 </script>
 </body>
 </html>
