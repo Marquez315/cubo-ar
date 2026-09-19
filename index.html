@@ -5,6 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Cubo AR Educativo</title>
 
+<!-- Instalación como app (PWA): Android/Chrome/Edge de escritorio la instalan
+     directo; iPhone/iPad (Safari) sólo soporta "Agregar a inicio" manual. -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#101218">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cubo AR">
+<link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
+<link rel="icon" href="icon-512.png" sizes="512x512" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+
 <script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-master.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@ar-js-org/ar.js@3.4.8/aframe/build/aframe-ar.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -226,6 +238,7 @@
   </div>
 
   <div id="filaBotones">
+    <button id="instalarBtn" style="display:none;">📲 Instalar app</button>
     <button id="ajusteBtn">🎛 Tamaño / Giro</button>
     <button id="plantillaBtn">🖨️ Plantilla del cubo</button>
     <button id="compartirBtn" class="destacado">📸 Compartir</button>
@@ -424,6 +437,13 @@
       <li>En una computadora (sin ese menú), la imagen se descarga sola para que la subas manualmente.</li>
     </ol>
 
+    <h3>8. Instalar la app en el celular o la compu</h3>
+    <ol>
+      <li>En Android, Chrome o Edge (celular o escritorio): tocá <b>📲 Instalar app</b>. Se abre un cartel del navegador para confirmar; una vez instalada, aparece como un ícono propio y se abre a pantalla completa, sin la barra del navegador.</li>
+      <li>En iPhone/iPad (Safari): tocá <b>📲 Instalar app</b> y seguí el paso manual que te muestra (Compartir → "Agregar a inicio"), porque Safari no permite instalarla con un solo toque.</li>
+      <li>La instalación es opcional: la app funciona igual de bien abierta directo desde el navegador.</li>
+    </ol>
+
     <h3>Si algo falla</h3>
     <table>
       <tr><th>Síntoma</th><th>Causa habitual</th></tr>
@@ -435,6 +455,7 @@
       <tr><td>El video no arranca solo</td><td>El navegador bloqueó el autoplay; tocá la pantalla una vez</td></tr>
       <tr><td>El video no tiene sonido</td><td>Es intencional: los celulares no dejan reproducir sonido automático</td></tr>
       <tr><td>No reconoce el link de YouTube</td><td>Pegá el link completo de <code>youtube.com</code> o <code>youtu.be</code>, no un texto suelto</td></tr>
+      <tr><td>No aparece "📲 Instalar app"</td><td>Ya está instalada, no es Chrome/Edge/Safari, o la página no está en HTTPS</td></tr>
     </table>
 
     <button id="cerrarGuia">Entendido</button>
@@ -1802,6 +1823,61 @@ window.addEventListener('load', () => {
       'Este navegador no expone la cámara. Abrí la página por <b>HTTPS</b> (o localhost).';
   }
 });
+
+/* ===========================================================
+   8. Instalar como app (PWA) — Android/escritorio (Chrome, Edge)
+      y ayuda manual para iPhone/iPad (Safari no lo automatiza)
+   =========================================================== */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch((err) => {
+      console.warn('No se pudo registrar el service worker (la app funciona igual, sin instalación offline):', err);
+    });
+  });
+}
+
+(function () {
+  const instalarBtn = document.getElementById('instalarBtn');
+  let promptDiferido = null;
+
+  const yaEstaInstalada = () =>
+    window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+  const esIOS = () =>
+    /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS moderno se identifica como Mac
+
+  if (yaEstaInstalada()) {
+    instalarBtn.style.display = 'none';
+  } else if (esIOS()) {
+    // Safari (iOS/iPadOS) no dispara "beforeinstallprompt": mostramos el
+    // botón igual, y al tocarlo explicamos el paso manual de "Compartir".
+    instalarBtn.style.display = '';
+    instalarBtn.addEventListener('click', () => {
+      alert('Para instalar el Cubo AR en tu iPhone/iPad:\n\n1. Tocá el botón Compartir (el cuadradito con la flecha hacia arriba) en Safari.\n2. Elegí "Agregar a inicio".\n3. Confirmá el nombre y tocá "Agregar".\n\nQueda como un ícono más, y se abre a pantalla completa sin las barras del navegador.');
+    });
+  } else {
+    // Chrome / Edge / Android / ChromeOS / escritorio: instalación automática
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      promptDiferido = e;
+      instalarBtn.style.display = '';
+    });
+    instalarBtn.addEventListener('click', async () => {
+      if (!promptDiferido) return;
+      instalarBtn.disabled = true;
+      promptDiferido.prompt();
+      try { await promptDiferido.userChoice; } catch (e) {}
+      promptDiferido = null;
+      instalarBtn.disabled = false;
+      instalarBtn.style.display = 'none';
+    });
+    window.addEventListener('appinstalled', () => {
+      instalarBtn.style.display = 'none';
+      promptDiferido = null;
+    });
+  }
+})();
 </script>
 </body>
 </html>
